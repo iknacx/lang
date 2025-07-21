@@ -40,18 +40,23 @@ pub fn expression(p: *Parser, power: usize) !*ast.Expression {
     var lhs = try p.allocator.create(ast.Expression);
     errdefer p.allocator.destroy(lhs);
 
-    lhs.* = switch (tok.kind) {
-        .identifier, .number => .{ .literal = .{ .value = tok.value } },
-        .plus, .dash => blk: {
+    switch (tok.kind) {
+        .identifier, .number => lhs.* = .{ .literal = .{ .value = tok.value } },
+        .plus, .dash => {
             const info = OpInfo.prefix.get(tok.value) orelse return error.UnkownOperator;
 
-            break :blk .{ .unaryop = .{
+            lhs.* = .{ .unaryop = .{
                 .op = tok.value,
                 .expr = try p.expression(info.power + 1),
             } };
         },
+        .lpar => {
+            lhs = try p.expression(0);
+            const rpar = try p.lexer.next() orelse return error.RightParenExpected;
+            if (rpar.kind != .rpar) return error.RightParenExpected;
+        },
         else => return error.LiteralOrOperatorExpected,
-    };
+    }
 
     while (true) {
         tok = try p.lexer.peek() orelse break;

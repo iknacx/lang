@@ -53,7 +53,7 @@ pub fn next(l: *Lexer) !?Token {
                 },
 
                 '(' => tok.kind = .lpar,
-                ')' => tok.kind = .lpar,
+                ')' => tok.kind = .rpar,
 
                 '+' => tok.kind = .plus,
                 '-' => tok.kind = .dash,
