@@ -6,7 +6,10 @@ pub const Kind = enum {
 
     plus,
     dash,
+
     star,
+    starstar,
+
     slash,
     equal,
 

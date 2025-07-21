@@ -5,6 +5,9 @@ const Lexer = @This();
 
 const State = enum {
     start,
+
+    star,
+
     number,
     identifier,
 };
@@ -54,7 +57,8 @@ pub fn next(l: *Lexer) !?Token {
 
                 '+' => tok.kind = .plus,
                 '-' => tok.kind = .dash,
-                '*' => tok.kind = .star,
+                '*' => continue :state .star,
+
                 '/' => tok.kind = .slash,
                 '=' => tok.kind = .equal,
 
@@ -66,6 +70,18 @@ pub fn next(l: *Lexer) !?Token {
 
             l.idx += 1;
         },
+
+        .star => {
+            l.idx += 1;
+            switch (l.src[l.idx]) {
+                '*' => {
+                    tok.kind = .starstar;
+                    l.idx += 1;
+                },
+                else => tok.kind = .star,
+            }
+        },
+
         .number => {
             l.idx += 1;
             switch (l.src[l.idx]) {

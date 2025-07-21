@@ -4,17 +4,23 @@ const Lexer = @import("Lexer.zig");
 
 const Parser = @This();
 
-const opinfo = struct {
-    const prefix: std.StaticStringMap(usize) = .initComptime(.{
-        .{ "+", 2 },
-        .{ "-", 2 },
+const OpInfo = struct {
+    const Assoc = enum { none, left, right };
+
+    power: usize,
+    assoc: Assoc = .none,
+
+    const prefix: std.StaticStringMap(OpInfo) = .initComptime(.{
+        .{ "+", OpInfo{ .power = 2 } },
+        .{ "-", OpInfo{ .power = 2 } },
     });
 
-    const infix: std.StaticStringMap(usize) = .initComptime(.{
-        .{ "+", 0 },
-        .{ "-", 0 },
-        .{ "*", 1 },
-        .{ "/", 1 },
+    const infix: std.StaticStringMap(OpInfo) = .initComptime(.{
+        .{ "+", OpInfo{ .power = 0, .assoc = .left } },
+        .{ "-", OpInfo{ .power = 0, .assoc = .left } },
+        .{ "*", OpInfo{ .power = 1, .assoc = .left } },
+        .{ "/", OpInfo{ .power = 1, .assoc = .left } },
+        .{ "**", OpInfo{ .power = 3, .assoc = .right } },
     });
 };
 
@@ -31,23 +37,18 @@ pub fn new(lexer: Lexer, allocator: std.mem.Allocator) Parser {
 pub fn expression(p: *Parser, power: usize) !*ast.Expression {
     var tok = try p.lexer.next() orelse return error.LhsExpected;
 
-    const e = try p.allocator.create(ast.Expression);
-    errdefer p.allocator.destroy(e);
+    var lhs = try p.allocator.create(ast.Expression);
+    errdefer p.allocator.destroy(lhs);
 
-    var lhs = switch (tok.kind) {
-        .identifier, .number => blk: {
-            e.* = .{ .literal = .{ .value = tok.value } };
-            break :blk e;
-        },
+    lhs.* = switch (tok.kind) {
+        .identifier, .number => .{ .literal = .{ .value = tok.value } },
         .plus, .dash => blk: {
-            const op_power = opinfo.prefix.get(tok.value) orelse return error.UnkownOperator;
+            const info = OpInfo.prefix.get(tok.value) orelse return error.UnkownOperator;
 
-            e.* = .{ .unaryop = .{
+            break :blk .{ .unaryop = .{
                 .op = tok.value,
-                .expr = try p.expression(op_power + 1),
+                .expr = try p.expression(info.power + 1),
             } };
-
-            break :blk e;
         },
         else => return error.LiteralOrOperatorExpected,
     };
@@ -55,15 +56,19 @@ pub fn expression(p: *Parser, power: usize) !*ast.Expression {
     while (true) {
         tok = try p.lexer.peek() orelse break;
         const op = switch (tok.kind) {
-            .plus, .dash, .star, .slash => tok.value,
+            .plus, .dash, .star, .slash, .starstar => tok.value,
             else => break,
         };
 
-        const op_power = opinfo.infix.get(op) orelse return error.UnkownOperator;
-        if (op_power < power) break;
+        const info = OpInfo.infix.get(tok.value) orelse return error.UnkownOperator;
+        if (info.power < power) break;
         p.lexer.skip();
 
-        const rhs = try p.expression(op_power + 1);
+        const rhs = try p.expression(switch (info.assoc) {
+            .left => info.power + 1,
+            .right => info.power,
+            else => return error.UnexpectedNoneAssoc,
+        });
 
         const tmp = try p.allocator.create(ast.Expression);
         tmp.* = .{ .binaryop = .{
