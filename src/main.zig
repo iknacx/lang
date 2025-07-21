@@ -1,6 +1,32 @@
 const std = @import("std");
+const ast = @import("syntax/ast.zig");
 const Lexer = @import("syntax/Lexer.zig");
 const Parser = @import("syntax/Parser.zig");
+
+fn eval(root: *ast.Expression) !i64 {
+    return switch (root.*) {
+        .literal => |lit| try std.fmt.parseInt(i64, lit.value, 10),
+        .unaryop => |un| blk: {
+            if (std.mem.eql(u8, un.op, "-")) {
+                break :blk -(try eval(un.expr));
+            } else @panic("TODO");
+        },
+        .binaryop => |bin| blk: {
+            const lhs = try eval(bin.lhs);
+            const rhs = try eval(bin.rhs);
+
+            if (std.mem.eql(u8, bin.op, "+")) {
+                break :blk lhs + rhs;
+            } else if (std.mem.eql(u8, bin.op, "-")) {
+                break :blk lhs - rhs;
+            } else if (std.mem.eql(u8, bin.op, "*")) {
+                break :blk lhs * rhs;
+            } else if (std.mem.eql(u8, bin.op, "/")) {
+                break :blk @divFloor(lhs, rhs);
+            } else @panic("TODO");
+        },
+    };
+}
 
 pub fn main() !void {
     var arena: std.heap.ArenaAllocator = .init(std.heap.page_allocator);
@@ -24,7 +50,8 @@ pub fn main() !void {
         const l = Lexer.new(buffer[0..len :0]);
         var p = Parser.new(l, arena.allocator());
         const expr = try p.expression(0);
-        expr.debug();
-        std.debug.print("\n", .{});
+
+        const res = try eval(expr);
+        std.debug.print("{d}\n", .{res});
     }
 }
