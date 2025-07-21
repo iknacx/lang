@@ -1,7 +1,11 @@
 const std = @import("std");
 const Lexer = @import("syntax/Lexer.zig");
+const Parser = @import("syntax/Parser.zig");
 
 pub fn main() !void {
+    var arena: std.heap.ArenaAllocator = .init(std.heap.page_allocator);
+    defer arena.deinit();
+
     const stdin: std.fs.File = .stdin();
     const stdout: std.fs.File = .stdout();
 
@@ -17,7 +21,10 @@ pub fn main() !void {
 
         // fix sentinel
         buffer[len] = 0;
-        var l = Lexer.new(buffer[0..len :0]);
-        while (try l.next()) |tok| std.debug.print("Token({s}): {s}\n", .{ @tagName(tok.kind), tok.value });
+        const l = Lexer.new(buffer[0..len :0]);
+        var p = Parser.new(l, arena.allocator());
+        const expr = try p.expression(0);
+        expr.debug();
+        std.debug.print("\n", .{});
     }
 }

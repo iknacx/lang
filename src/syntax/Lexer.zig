@@ -11,14 +11,31 @@ const State = enum {
 
 src: [:0]const u8,
 idx: usize = 0,
+saved: ?Token,
 
 pub fn new(source: [:0]const u8) Lexer {
     return Lexer{
         .src = source,
+        .saved = null,
     };
 }
 
+pub fn peek(l: *Lexer) !?Token {
+    if (l.saved) |tok| return tok;
+    l.saved = try l.next();
+    return l.saved;
+}
+
+pub fn skip(l: *Lexer) void {
+    l.saved = null;
+}
+
 pub fn next(l: *Lexer) !?Token {
+    if (l.saved) |tok| {
+        l.saved = null;
+        return tok;
+    }
+
     var tok: Token = undefined;
     var start: usize = l.idx;
 
